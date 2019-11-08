@@ -3,7 +3,7 @@
 const camera = {
     fov: 75,
     aspect: 1,
-    near: 0.1,
+    near: 1,
     far: 400,
 };
 
@@ -13,7 +13,13 @@ const box = {
     depth: 100.0,
 };
 
-var particleAmount = 700000;
+const lightBoxSize = {
+    width: 100.0,
+    height: 10.0,
+    depth: 10.0,
+};
+
+var particleAmount = 1000000;
 
 function main() {
     const canvas = document.querySelector('#c');
@@ -22,78 +28,109 @@ function main() {
     });
 
     const ThreeCamera = new THREE.PerspectiveCamera(camera.fov, camera.aspect, camera.near, camera.far);
-    ThreeCamera.position.z = 20;
+    ThreeCamera.position.z = 30;
 
     const controls = new THREE.OrbitControls(ThreeCamera, canvas);
 
     const roomGeometry = new THREE.BoxGeometry(box.width, box.height, box.depth);
 
     const roomMaterial = new THREE.MeshPhongMaterial({
-        color: 0xe8a52a,
+        color: 0xfff0b3,
         side: THREE.BackSide
     });
 
+    const lightBoxGeometry = new THREE.BoxGeometry(lightBoxSize.width, lightBoxSize.height, lightBoxSize.depth);
+
+    const lightBoxMaterial = new THREE.MeshPhongMaterial({
+        color: 0xFFFFFF,
+        side: THREE.BackSide,
+        opacity: 0.1,
+        transparent: true,
+    });
+
+    const lightBox = new THREE.Mesh(lightBoxGeometry, lightBoxMaterial);
     const room = new THREE.Mesh(roomGeometry, roomMaterial);
 
-    var particleGeometry = new THREE.BufferGeometry();
-    var vertices = [];
+    room.geometry.computeBoundingBox();
+    var roomBB = room.geometry.boundingBox.clone();
+
+    var particleGeometry = new THREE.Geometry();
 
     for (var i = 0; i < particleAmount; i++) {
-        var x = Math.random() * 100 - 50;
-        var y = Math.random() * 100 - 50;
-        var z = Math.random() * 100 - 50;
 
-        vertices.push(x, y, z);
+        var pos = new THREE.Vector3();
+        pos.x = THREE.Math.randFloatSpread(100) - 50;
+        pos.y = THREE.Math.randFloatSpread(100) - 50;
+        pos.z = THREE.Math.randFloatSpread(100) - 50;
+
+        var dir = new THREE.Vector3()
+        dir.x = THREE.Math.randFloatSpread(1) - 0.5;
+        dir.y = THREE.Math.randFloatSpread(1) - 0.5;
+        dir.z = THREE.Math.randFloatSpread(1) - 0.5;
+
+        pos.dir = dir;
+
+        particleGeometry.vertices.push(pos);
     }
-
-    particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
 
     var textureLoader = new THREE.TextureLoader();
 
-    var particleTexture = textureLoader.load('textures/particletest.png');
+    var particleTexture = textureLoader.load('textures/particle2.png');
 
-    var lightBoxPos = new THREE.Vector3(0,0,0);
-    var lightBox = new THREE.Object3D();
+    var lightBoxPos = new THREE.Vector3(0, 0, 0);
+
+    var Syx = -0.5;
+    var Szx = 0;
+    var Sxy = 0;
+    var Sxz = 0;
+    var Szy = 0;
+    var Syz = 0;
+
+    var shearMatrix = new THREE.Matrix4().set(
+        1, Sxy, Sxz, 0,
+        Syx, 1, Syz, 0,
+        Szx, Szy, 1, 0,
+        0, 0, 0, 1
+        );
 
     var particleMaterial = new THREE.ShaderMaterial({
         uniforms: {
-          color: {
-            value: new THREE.Color("0xffffff")
-          },
-          size:{
-              value: 2
-          },
-          boxPosition: {
-              value: lightBoxPos
-          },
-          boxSize: {
-              value: new THREE.Vector3(5, 5, 5)
-          },
-          texture:{
-              type: 't',
-              value: particleTexture
-          },
+            size: {
+                value: 3
+            },
+            boxPosition: {
+                value: lightBoxPos
+            },
+            boxSize: {
+                value: new THREE.Vector3(lightBoxSize.width, lightBoxSize.height, lightBoxSize.depth)
+            },
+            texture: {
+                type: 't',
+                value: particleTexture
+            },
+            transf: {
+                value: shearMatrix
+            }
         },
-
         transparent: true,
 
         vertexShader: `
-                
           uniform float scale;
           uniform float size;
+
+          uniform mat4 transf;
           
           varying vec3 vPosition;
           
           void main() {
             vPosition = position;
-            vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+            vec4 mvPosition = modelViewMatrix * (transf * vec4( position, 1.0 ));
             gl_PointSize = size;
             gl_Position = projectionMatrix * mvPosition;
     
           }
       `,
         fragmentShader: `
-          uniform vec3 color;
           uniform sampler2D texture;
           
           uniform vec3 boxPosition;
@@ -103,17 +140,18 @@ function main() {
     
           void main() {
             
-            vec3 particleInBox = abs(boxPosition - vPosition);
-            if(particleInBox.x > boxSize.x || particleInBox.y > boxSize.y || particleInBox.z > boxSize.z) 
+            vec3 halfBox = boxSize * 0.5;
+            vec3 particleBox = abs(boxPosition - vPosition);
+            if(particleBox.x > halfBox.x || particleBox.y > halfBox.y || particleBox.z > halfBox.z) 
             {
-                gl_FragColor = vec4( color, 0.01 );
+                discard;
             }
             else{
-                gl_FragColor = vec4( color, 1.0 );
+                gl_FragColor = texture2D( texture, gl_PointCoord );
             }
           }
       `
-      });
+    });
 
     var particles = new THREE.Points(particleGeometry, particleMaterial);
 
@@ -124,46 +162,59 @@ function main() {
 
     scene.add(room);
     scene.add(particles);
+    scene.add(lightBox);
 
     function render() {
 
-        moveParticles(particleGeometry);
-
+        updateParticles(particleGeometry, roomBB)
 
         renderer.render(scene, ThreeCamera);
 
-            requestAnimationFrame(render);
-        }
         requestAnimationFrame(render);
     }
+    requestAnimationFrame(render);
+}
 
-    function addLight(scene) {
-        const color = 0xFFFFFF;
-        const intensity = 0.5;
-        const light = new THREE.DirectionalLight(color, intensity);
-        light.position.set(-1, 2, 4);
-        scene.add(light);
+function addLight(scene) {
+    var bulbLight, bulbMat
 
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
-        hemiLight.color.setHSL(0.6, 1, 0.6);
-        hemiLight.groundColor.setHSL(0.095, 1, 0.75);
-        hemiLight.position.set(0, 50, 0);
-        scene.add(hemiLight);
-    }
+    var bulbGeometry = new THREE.SphereBufferGeometry(0.001, 16, 8);
+    bulbLight = new THREE.PointLight(0xffee88, 1, 100, 2);
+    bulbMat = new THREE.MeshStandardMaterial({
+        emissive: 0xffffee,
+        emissiveIntensity: 1,
+        color: 0x000000
+    });
+    bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));
+    bulbLight.position.set(0, 0, 0);
+    bulbLight.castShadow = true;
+    scene.add(bulbLight);
 
-    function moveParticles(particleGeometry) {
-        //var time = Date.now() * 0.005;
-        var vertices = particleGeometry.attributes.position.array;
-            
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.8);
+    hemiLight.color.setHSL(0.6, 1, 0.6);
+    hemiLight.groundColor.setHSL(0.1, 1, 0.75);
+    hemiLight.position.set(0, 50, 0);
+    scene.add(hemiLight);
+}
 
-        for ( var i = 0; i < particleAmount*3; i ++ ) {
-  
-                vertices[i] += Math.random() * 0.0001 - 0.001;
+function updateParticles(particleGeometry, roomBB) {
 
+    for (var i = 0; i < particleAmount; i++) {
 
+        if (!roomBB.containsPoint(particleGeometry.vertices[i])) {
+            particleGeometry.vertices[i].x = Math.random() * 100 - 50;
+            particleGeometry.vertices[i].y = Math.random() * 100 - 50;
+            particleGeometry.vertices[i].z = Math.random() * 100 - 50;
         }
-        particleGeometry.attributes.position.needsUpdate = true;
-        
-    }
 
-    main();
+        //TODO: Implement deltatime
+        particleGeometry.vertices[i].x += particleGeometry.vertices[i].dir.x * 0.005;
+        particleGeometry.vertices[i].y += particleGeometry.vertices[i].dir.y * 0.005;
+        particleGeometry.vertices[i].z += particleGeometry.vertices[i].dir.z * 0.005;
+
+    }
+    particleGeometry.colorsNeedUpdate = true;
+    particleGeometry.verticesNeedUpdate = true;
+}
+
+main();
