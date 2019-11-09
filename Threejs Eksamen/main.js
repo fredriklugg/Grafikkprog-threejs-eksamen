@@ -1,5 +1,7 @@
 'use strict';
 
+//test comment
+
 const camera = {
     fov: 75,
     aspect: window.innerWidth / window.innerHeight,
