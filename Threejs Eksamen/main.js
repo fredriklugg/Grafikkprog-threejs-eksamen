@@ -1,7 +1,5 @@
 'use strict';
 
-//test comment
-
 const camera = {
     fov: 75,
     aspect: window.innerWidth / window.innerHeight,
@@ -196,15 +194,22 @@ function main() {
     scene.add(room);
     scene.add(particles);
 
-    var then = 0;
+    var stats = new Stats();
+    stats.showPanel( 0 );
+    document.body.appendChild( stats.dom );
 
+    var then = 0;
     function render(now) {
+        stats.begin();
+
         now *= 0.001; // convert to seconds
         const deltaTime = now - then;
         then = now;
         updateParticles(particleGeometry, roomBB, deltaTime)
 
         renderer.render(scene, ThreeCamera);
+
+        stats.end();
 
         requestAnimationFrame(render);
     }
