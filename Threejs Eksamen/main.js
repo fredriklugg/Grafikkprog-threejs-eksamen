@@ -19,7 +19,7 @@ const lightBoxSize = {
     depth: 10.0,
 };
 
-var particleAmount = 1000000;
+var particleAmount = 500000;
 
 function main() {
     const canvas = document.querySelector('#c');
@@ -75,11 +75,12 @@ function main() {
 
     var textureLoader = new THREE.TextureLoader();
 
-    var particleTexture = textureLoader.load('textures/particle2.png');
+    var particleTexture = textureLoader.load('textures/particle.png');
+    var fadedParticleTexture = textureLoader.load('textures/particlefaded.png');
 
     var lightBoxPos = new THREE.Vector3(0, 0, 0);
 
-    var Syx = -0.5;
+    var Syx = 0.5;
     var Szx = 0;
     var Sxy = 0;
     var Sxz = 0;
@@ -96,7 +97,7 @@ function main() {
     var particleMaterial = new THREE.ShaderMaterial({
         uniforms: {
             size: {
-                value: 3
+                value: 5
             },
             boxPosition: {
                 value: lightBoxPos
@@ -108,6 +109,10 @@ function main() {
                 type: 't',
                 value: particleTexture
             },
+            texture2: {
+                type: 't',
+                value: fadedParticleTexture
+            },
             transf: {
                 value: shearMatrix
             }
@@ -117,34 +122,42 @@ function main() {
         vertexShader: `
           uniform float scale;
           uniform float size;
-
-          uniform mat4 transf;
           
           varying vec3 vPosition;
           
           void main() {
             vPosition = position;
-            vec4 mvPosition = modelViewMatrix * (transf * vec4( position, 1.0 ));
+            vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
             gl_PointSize = size;
             gl_Position = projectionMatrix * mvPosition;
-    
           }
       `,
         fragmentShader: `
+          uniform vec3 color;   
           uniform sampler2D texture;
+          uniform sampler2D texture2;
           
           uniform vec3 boxPosition;
           uniform vec3 boxSize;
           
+          uniform mat4 transf;
           varying vec3 vPosition;
     
           void main() {
             
             vec3 halfBox = boxSize * 0.5;
-            vec3 particleBox = abs(boxPosition - vPosition);
+
+            vec4 boxPos4 = vec4(boxPosition, 1.0);
+            vec4 vPos4 = vec4(vPosition, 1.0);
+
+            vec4 vPosTrans = transf*vPos4;
+            
+            vec4 particleBox = abs(boxPos4 - vPosTrans);
+            
             if(particleBox.x > halfBox.x || particleBox.y > halfBox.y || particleBox.z > halfBox.z) 
             {
-                discard;
+                gl_FragColor = texture2D( texture2, gl_PointCoord );
+                //discard;
             }
             else{
                 gl_FragColor = texture2D( texture, gl_PointCoord );
@@ -162,7 +175,7 @@ function main() {
 
     scene.add(room);
     scene.add(particles);
-    scene.add(lightBox);
+    //scene.add(lightBox);
 
     function render() {
 
@@ -179,18 +192,18 @@ function addLight(scene) {
     var bulbLight, bulbMat
 
     var bulbGeometry = new THREE.SphereBufferGeometry(0.001, 16, 8);
-    bulbLight = new THREE.PointLight(0xffee88, 1, 100, 2);
+    bulbLight = new THREE.PointLight(0xffee88, 1.5, 100, 1);
     bulbMat = new THREE.MeshStandardMaterial({
         emissive: 0xffffee,
         emissiveIntensity: 1,
-        color: 0x000000
+        color: 0x000000,
     });
     bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));
     bulbLight.position.set(0, 0, 0);
     bulbLight.castShadow = true;
     scene.add(bulbLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.8);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.2);
     hemiLight.color.setHSL(0.6, 1, 0.6);
     hemiLight.groundColor.setHSL(0.1, 1, 0.75);
     hemiLight.position.set(0, 50, 0);
@@ -200,7 +213,6 @@ function addLight(scene) {
 function updateParticles(particleGeometry, roomBB) {
 
     for (var i = 0; i < particleAmount; i++) {
-
         if (!roomBB.containsPoint(particleGeometry.vertices[i])) {
             particleGeometry.vertices[i].x = Math.random() * 100 - 50;
             particleGeometry.vertices[i].y = Math.random() * 100 - 50;
@@ -208,10 +220,9 @@ function updateParticles(particleGeometry, roomBB) {
         }
 
         //TODO: Implement deltatime
-        particleGeometry.vertices[i].x += particleGeometry.vertices[i].dir.x * 0.005;
-        particleGeometry.vertices[i].y += particleGeometry.vertices[i].dir.y * 0.005;
-        particleGeometry.vertices[i].z += particleGeometry.vertices[i].dir.z * 0.005;
-
+        particleGeometry.vertices[i].x += particleGeometry.vertices[i].dir.x * 0.003;
+        particleGeometry.vertices[i].y += particleGeometry.vertices[i].dir.y * 0.003;
+        particleGeometry.vertices[i].z += particleGeometry.vertices[i].dir.z * 0.003;
     }
     particleGeometry.colorsNeedUpdate = true;
     particleGeometry.verticesNeedUpdate = true;
