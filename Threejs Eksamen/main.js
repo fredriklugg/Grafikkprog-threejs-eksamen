@@ -21,6 +21,36 @@ const lightBoxSize = {
 
 var particleAmount = 10000;
 
+var lightBoxPos = new THREE.Vector3(0, -21, 0);
+
+var Syx = 0.75;
+var Szx = 0;
+var Sxy = 0;
+var Sxz = 0;
+var Szy = 0;
+var Syz = 0;
+
+var shearMatrix = new THREE.Matrix4().set(
+    1, Sxy, Sxz, 0,
+    Syx, 1, Syz, 0,
+    Szx, Szy, 1, 0,
+    0, 0, 0, 1
+);
+
+var Syx = -0.75;
+var Szx = 0;
+var Sxy = 0;
+var Sxz = 0;
+var Szy = 0;
+var Syz = 0;
+
+var shearMatrixLB = new THREE.Matrix4().set(
+    1, Sxy, Sxz, 0,
+    Syx, 1, Syz, 0,
+    Szx, Szy, 1, 0,
+    0, 0, 0, 1
+);
+
 function main() {
     const canvas = document.querySelector('#c');
     const renderer = new THREE.WebGLRenderer({
@@ -74,6 +104,50 @@ function main() {
 
     const room = new THREE.Mesh(roomGeometry, roomMaterialsCube);
 
+    const LightBoxGeometry = new THREE.BoxGeometry(lightBoxSize.width, lightBoxSize.height, lightBoxSize.depth);
+
+    var LightBoxMeterial = new THREE.ShaderMaterial({
+        uniforms: {
+            color: {
+                value: new THREE.Color(0xfff0b3)
+            },
+            boxPosition: {
+                value: lightBoxPos
+            },
+            boxSize: {
+                value: new THREE.Vector3(lightBoxSize.width, lightBoxSize.height, lightBoxSize.depth)
+            },
+            shearTransf: {
+                value: shearMatrixLB
+            },
+        },
+        transparent: true,
+        side: THREE.DoubleSide,
+
+
+        vertexShader: `
+          uniform float scale;
+          uniform mat4 shearTransf;
+
+          uniform vec3 boxPosition;
+          
+          void main() {
+            vec4 mvPosition = modelViewMatrix * (shearTransf * vec4( (position + boxPosition), 1.0 ));
+            gl_Position = projectionMatrix * mvPosition;
+          }
+      `,
+        fragmentShader: `
+          uniform vec3 color;   
+              
+          void main() {
+            
+            gl_FragColor = vec4( color, 0.1 );
+          }
+      `
+    });
+
+    const lightBox = new THREE.Mesh(LightBoxGeometry, LightBoxMeterial);
+
     room.geometry.computeBoundingBox();
     var roomBB = room.geometry.boundingBox.clone();
 
@@ -99,22 +173,6 @@ function main() {
     var particleTexture = textureLoader.load('textures/particle.png');
     var fadedParticleTexture = textureLoader.load('textures/particlefaded.png');
 
-    var lightBoxPos = new THREE.Vector3(0, -20, 0);
-
-    var Syx = 0.75;
-    var Szx = 0;
-    var Sxy = 0;
-    var Sxz = 0;
-    var Szy = 0;
-    var Syz = 0;
-
-    var shearMatrix = new THREE.Matrix4().set(
-        1, Sxy, Sxz, 0,
-        Syx, 1, Syz, 0,
-        Szx, Szy, 1, 0,
-        0, 0, 0, 1
-    );
-
     var particleMaterial = new THREE.ShaderMaterial({
         uniforms: {
             size: {
@@ -139,6 +197,8 @@ function main() {
             }
         },
         transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthTest: false,
 
         vertexShader: `
           uniform float scale;
@@ -154,7 +214,6 @@ function main() {
           }
       `,
         fragmentShader: `
-          uniform vec3 color;   
           uniform sampler2D texture;
           uniform sampler2D texture2;
           
@@ -189,10 +248,14 @@ function main() {
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0xFFFFFF, 0.002);
 
+    renderer.sortObjects = false;
+
     addLight(scene);
 
     scene.add(room);
     scene.add(particles);
+    scene.add(lightBox);
+
 
     var stats = new Stats();
     stats.showPanel( 0 );
@@ -254,7 +317,6 @@ function updateParticles(particleGeometry, roomBB, deltaTime) {
         particleGeometry.vertices[i].y += particleGeometry.vertices[i].dir.y * speed * deltaTime;
         particleGeometry.vertices[i].z += particleGeometry.vertices[i].dir.z * speed * deltaTime;
     }
-    particleGeometry.colorsNeedUpdate = true;
     particleGeometry.verticesNeedUpdate = true;
 }
 
