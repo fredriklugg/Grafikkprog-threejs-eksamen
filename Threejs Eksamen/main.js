@@ -51,7 +51,7 @@ function main() {
     });
 
     const ThreeCamera = new THREE.PerspectiveCamera(camera.fov, camera.aspect, camera.near, camera.far);
-    ThreeCamera.position.z = 90;
+    ThreeCamera.position.z = 80;
 
     const controls = new THREE.OrbitControls(ThreeCamera, canvas);
 
@@ -121,9 +121,6 @@ function main() {
             boxPosition: {
                 value: lightBoxPos
             },
-            boxSize: {
-                value: new THREE.Vector3(lightBoxSize.width, lightBoxSize.height, lightBoxSize.depth)
-            },
             shearTransf: {
                 value: shearMatrixReversed
             },
@@ -131,11 +128,8 @@ function main() {
         transparent: true,
         side: THREE.DoubleSide,
 
-
         vertexShader: `
-          uniform float scale;
           uniform mat4 shearTransf;
-
           uniform vec3 boxPosition;
           
           void main() {
@@ -208,9 +202,7 @@ function main() {
         depthTest: false,
 
         vertexShader: `
-          uniform float scale;
           uniform float size;
-          
           varying vec3 vPosition;
           
           void main() {
@@ -277,7 +269,7 @@ function main() {
         now *= 0.001; // convert to seconds
         const deltaTime = now - then;
         then = now;
-        updateParticles(particleGeometry, roomBB, deltaTime)
+        updateParticles(particleGeometry, roomBB, deltaTime);
 
         renderer.render(scene, ThreeCamera);
 
@@ -291,8 +283,8 @@ function main() {
 function addLight(scene) {
 
     const bulbLight = new THREE.PointLight(0xffee88, 1.5, 100, 1);
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.2);
-    hemiLight.color.setHSL(0.6, 1, 0.6);
+    const hemiLight = new THREE.HemisphereLight(0x000000, 0x000000, 0.2);
+    hemiLight.color.setHSL(0.6, 1.0, 0.6);
 
     scene.add(bulbLight);
     scene.add(hemiLight);
