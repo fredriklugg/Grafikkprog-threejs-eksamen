@@ -3,7 +3,7 @@
 const camera = {
     fov: 75,
     aspect: window.innerWidth / window.innerHeight,
-    near: 1,
+    near: 0.1,
     far: 400,
 };
 
@@ -16,7 +16,7 @@ const box = {
 const lightBoxSize = {
     width: 100.0,
     height: 30.0,
-    depth: 30.0,
+    depth: 32.0,
 };
 
 var particleAmount = 10000;
@@ -37,17 +37,10 @@ var shearMatrix = new THREE.Matrix4().set(
     0, 0, 0, 1
 );
 
-var Syx = -0.75;
-var Szx = 0;
-var Sxy = 0;
-var Sxz = 0;
-var Szy = 0;
-var Syz = 0;
-
-var shearMatrixLB = new THREE.Matrix4().set(
-    1, Sxy, Sxz, 0,
-    Syx, 1, Syz, 0,
-    Szx, Szy, 1, 0,
+var shearMatrixReversed = new THREE.Matrix4().set(
+    1, -Sxy, -Sxz, 0,
+    -Syx, 1, -Syz, 0,
+    -Szx, -Szy, 1, 0,
     0, 0, 0, 1
 );
 
@@ -58,43 +51,52 @@ function main() {
     });
 
     const ThreeCamera = new THREE.PerspectiveCamera(camera.fov, camera.aspect, camera.near, camera.far);
-    ThreeCamera.position.z = 100;
+    ThreeCamera.position.z = 90;
 
     const controls = new THREE.OrbitControls(ThreeCamera, canvas);
 
-    var textureLoader = new THREE.TextureLoader();
+    const textureLoader = new THREE.TextureLoader();
 
-    var wallTexture = textureLoader.load('textures/Cubemap/Brickwall.png');
-    var wallWindowTexture = textureLoader.load('textures/Cubemap/BrickwallwBars.png');
+    //creating room
 
     const roomGeometry = new THREE.BoxGeometry(box.width, box.height, box.depth);
 
+    const wallTexture = textureLoader.load('textures/Cubemap/Brickwall.png');
+    const floorTexture = textureLoader.load('textures/Cubemap/concretefloor.jpg');
+    const wallWindowTexture = textureLoader.load('textures/Cubemap/BrickwallwBars.png');
+
     const roomMaterialsCube = [
+        //right wall
         new THREE.MeshPhongMaterial({
             color: 0xfff0b3,
             side: THREE.BackSide,
             map: wallTexture
         }),
+        //left wall
         new THREE.MeshPhongMaterial({
             color: 0xfff0b3,
             side: THREE.BackSide,
             map: wallWindowTexture
         }),
+        //roof
+        new THREE.MeshPhongMaterial({
+            color: 0xfff0b3,
+            side: THREE.BackSide,
+            map: floorTexture
+        }),
+        //Floor
+        new THREE.MeshPhongMaterial({
+            color: 0xfff0b3,
+            side: THREE.BackSide,
+            map: floorTexture
+        }),
+        //front wall
         new THREE.MeshPhongMaterial({
             color: 0xfff0b3,
             side: THREE.BackSide,
             map: wallTexture
         }),
-        new THREE.MeshPhongMaterial({
-            color: 0xfff0b3,
-            side: THREE.BackSide,
-            map: wallTexture
-        }),
-        new THREE.MeshPhongMaterial({
-            color: 0xfff0b3,
-            side: THREE.BackSide,
-            map: wallTexture
-        }),
+        //back wall
         new THREE.MeshPhongMaterial({
             color: 0xfff0b3,
             side: THREE.BackSide,
@@ -103,6 +105,11 @@ function main() {
     ];
 
     const room = new THREE.Mesh(roomGeometry, roomMaterialsCube);
+
+    room.geometry.computeBoundingBox();
+    const roomBB = room.geometry.boundingBox.clone();
+
+    //create lightbox
 
     const LightBoxGeometry = new THREE.BoxGeometry(lightBoxSize.width, lightBoxSize.height, lightBoxSize.depth);
 
@@ -118,7 +125,7 @@ function main() {
                 value: new THREE.Vector3(lightBoxSize.width, lightBoxSize.height, lightBoxSize.depth)
             },
             shearTransf: {
-                value: shearMatrixLB
+                value: shearMatrixReversed
             },
         },
         transparent: true,
@@ -148,8 +155,8 @@ function main() {
 
     const lightBox = new THREE.Mesh(LightBoxGeometry, LightBoxMeterial);
 
-    room.geometry.computeBoundingBox();
-    var roomBB = room.geometry.boundingBox.clone();
+
+    //creating particles
 
     var particleGeometry = new THREE.Geometry();
 
@@ -170,8 +177,8 @@ function main() {
         particleGeometry.vertices.push(pos);
     }
 
-    var particleTexture = textureLoader.load('textures/particle.png');
-    var fadedParticleTexture = textureLoader.load('textures/particlefaded.png');
+    const particleTexture = textureLoader.load('textures/particle.png');
+    const fadedParticleTexture = textureLoader.load('textures/particlefaded.png');
 
     var particleMaterial = new THREE.ShaderMaterial({
         uniforms: {
@@ -245,18 +252,20 @@ function main() {
 
     var particles = new THREE.Points(particleGeometry, particleMaterial);
 
+    //set up scene and add fog
+
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0xFFFFFF, 0.002);
 
     renderer.sortObjects = false;
 
+    //Adding light and objects to scene
     addLight(scene);
-
     scene.add(room);
     scene.add(particles);
     scene.add(lightBox);
 
-
+    //FPS Counter
     var stats = new Stats();
     stats.showPanel( 0 );
     document.body.appendChild( stats.dom );
@@ -280,27 +289,16 @@ function main() {
 }
 
 function addLight(scene) {
-    var bulbLight, bulbMat
 
-    var bulbGeometry = new THREE.SphereBufferGeometry(0.001, 16, 8);
-    bulbLight = new THREE.PointLight(0xffee88, 1.5, 100, 1);
-    bulbMat = new THREE.MeshStandardMaterial({
-        emissive: 0xffffee,
-        emissiveIntensity: 1,
-        color: 0x000000,
-    });
-    bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));
-    bulbLight.position.set(0, 0, 0);
-    bulbLight.castShadow = true;
-    scene.add(bulbLight);
-
+    const bulbLight = new THREE.PointLight(0xffee88, 1.5, 100, 1);
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.2);
     hemiLight.color.setHSL(0.6, 1, 0.6);
-    hemiLight.groundColor.setHSL(0.1, 1, 0.75);
-    hemiLight.position.set(0, 50, 0);
+
+    scene.add(bulbLight);
     scene.add(hemiLight);
 }
 
+//update particles: place inside box if outside and set movement
 function updateParticles(particleGeometry, roomBB, deltaTime) {
 
     var speed = 0.5;
@@ -312,7 +310,6 @@ function updateParticles(particleGeometry, roomBB, deltaTime) {
             particleGeometry.vertices[i].z = Math.random() * 100 - 50;
         }
 
-        //TODO: Implement deltatime
         particleGeometry.vertices[i].x += particleGeometry.vertices[i].dir.x * speed * deltaTime;
         particleGeometry.vertices[i].y += particleGeometry.vertices[i].dir.y * speed * deltaTime;
         particleGeometry.vertices[i].z += particleGeometry.vertices[i].dir.z * speed * deltaTime;
